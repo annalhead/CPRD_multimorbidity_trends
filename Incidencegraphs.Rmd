@@ -1,0 +1,482 @@
+---
+title: "Incidence Graphs"
+author: "Anna"
+date: "01/04/2021"
+output: 
+  html_document:
+    keep_md: true
+---
+
+```{r setup, include=FALSE}
+library(ggplot2)
+library(knitr)
+library(Rcpp)
+library(fst)
+library(data.table)
+if (!require("PHEindicatormethods")) install.packages("PHEindicatormethods")
+library(PHEindicatormethods)
+library(RColorBrewer)
+library(ggthemes)
+library(scales)
+library(viridis)
+library(cowplot)
+
+#DSR package now archived
+#packageurl <- "https://cran.r-project.org/src/contrib/Archive/dsr/dsr_0.2.2.tar.gz"
+#install.packages(packageurl, repos=NULL, type="source")
+library(dsr)
+
+
+data.table::setDTthreads(10) #this is so that don't use all the processors 
+```
+
+```{r}
+cbPalette <- c("#999999", "#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#D55E00", "#CC79A7")
+
+cbPaletteMod <- c("#999999", "#E69F00", "#56B4E9", "#009E73", "#D55E00", "#CC79A7")
+xaxisyear <- c(2004, 2007, 2010, 2013, 2016, 2019)
+
+
+mypalette <-brewer.pal(7,"GnBu")
+mypalette #don't want the faintest 2 
+mypalette <- c("#A8DDB5" ,"#7BCCC4" ,"#4EB3D3" ,"#2B8CBE", "#08589E")
+
+
+mypalette2 <-brewer.pal(9,"GnBu")
+mypalette2 #don't want the faintest 2 
+mypalette2 <- c("#CCEBC5", "#A8DDB5" ,"#7BCCC4" ,"#4EB3D3" ,"#2B8CBE", "#0868AC" , "#084081")
+
+
+mypalette
+xaxisyear <- c(2004, 2007, 2010, 2013, 2016, 2019)
+```
+
+# load the data
+```{r echo=FALSE, out.width = '100%'}
+data_dir_CPRD <-
+  function(x = character(0))
+    paste0("/mnt/", Sys.info()[["user"]],
+      "/UoL/CPRD2019mm/Data May 2020/", x)
+
+data_dir_lookup <-
+  function(x = character(0))
+    paste0("/mnt/", Sys.info()[["user"]],
+           "/UoL/CPRD2019mm/Dictionaries etc/", x)
+
+
+
+combi_mm <- read_fst(data_dir_CPRD("combi_mm_detailed.fst"), as.data.table = T)
+combi_mm[, `:=` (
+  imd = factor(imd, levels = c(1,2,3,4,5)), 
+  bmm = factor(bmm),
+  cmm = factor(cmm),
+  cmm3plus = factor(cmm3plus))]
+
+
+
+xaxisyear <- c(2004, 2007, 2010, 2013, 2016, 2019)
+#xaxisyear <- c(2004, 2008, 2012, 2016, 2020)
+#xaxisyear2 <- c(2005, 2010, 2015, 2020)
+
+```
+
+
+# Making a summary table split by all the possible variables
+```{r echo=FALSE, out.width = '100%'}
+
+inc_tab <- rbind(combi_mm[, 
+                           .(N = sum(bmm == 1L), 
+                             num_atrisk = (sum(bmm == 0L) + (sum(bmm == 1L)/2)),
+                             days_atrisk = sum(bmm_daysar),
+                             years_atrisk = sum(bmm_daysar)/365.24, 
+                             outcome = (sum(bmm == 1L)/
+                                          (sum(bmm_daysar)/365.24))*10000), 
+                          keyby = c("year", "gender", "agegrp5",
+                                    "agegrp10_simple", "imd", "region")][
+                                      , type := "Basic"],
+                 combi_mm[, 
+                           .(N = sum(cmm == 1L), 
+                             num_atrisk = sum(cmm == 0L) + (sum(cmm == 1L)/2),
+                             days_atrisk = sum(cmm_daysar),
+                             years_atrisk = sum(cmm_daysar)/365.24, 
+                             outcome = (sum(cmm == 1L)/
+                                          (sum(cmm_daysar)/365.24))*10000), 
+                          keyby = c("year", "gender", "agegrp5",
+                                    "agegrp10_simple", "imd", "region")][,
+                                      type := "Complex"],
+                 combi_mm[, 
+                           .(N = sum(cmm3plus == 1L), 
+                             num_atrisk = sum(cmm3plus == 0L) + 
+                               (sum(cmm3plus == 1L)/2),
+                             days_atrisk = sum(cmm3plus_daysar),
+                             years_atrisk = sum(cmm3plus_daysar)/365.24, 
+                             outcome = (sum(cmm3plus == 1L)/
+                                          (sum(cmm3plus_daysar)/365.24))*10000), 
+                          keyby = c("year", "gender", "agegrp5",
+                                    "agegrp10_simple", "imd", "region")][,
+                                      type := "Complex 3+"])
+
+#don't want any groups to have 0 people at risk 
+inc_tab <- inc_tab[years_atrisk != 0 & !is.na(years_atrisk), ]
+
+
+```
+
+# Overall incidence
+```{r}
+inc_tab[,
+        (sum(N)/sum(years_atrisk))*10000, 
+        keyby = c("type")]
+```
+#  incidence by gender
+```{r}
+inc_tab[,
+        (sum(N)/sum(years_atrisk))*10000, 
+        keyby = c("type", "gender") ]
+```
+
+# Crude incidence by sex, agegrp, MM type 
+```{r}
+ggplot(inc_tab[gender != "Indeterminate" & type != "Complex 3+",
+               (sum(N) / sum(years_atrisk)) * 10000,
+               keyby = c("year", "agegrp10_simple", "type", "gender")],
+       aes(year, V1, col = agegrp10_simple)) +
+  geom_smooth(size = 0.5, se = FALSE) +
+  facet_grid(type ~ gender) +
+  expand_limits(y = 0) +
+  scale_x_continuous(name = "Year",
+                     limits = c(2003.5, 2021),
+                     breaks = xaxisyear) +
+  scale_y_continuous(name = "Crude Incidence\n (per 10,000 person-years)", labels = comma_format()) +
+  theme_few() +
+  theme(
+    axis.text.x = element_text(size = 8),
+    legend.background = element_rect(
+      fill = '#FBFBFB',
+      size = 0.5,
+      linetype = "solid"
+    ),
+    legend.title = element_text(size = 10)
+  ) +
+  scale_colour_manual(values = mypalette2)  +
+  labs(colour = "10-year\n age-group") +
+  guides(colour = guide_legend(reverse = TRUE))
+#ggsave("prelim_graphs/inc_sex_age.svg") 
+
+ggplot(inc_tab[gender != "Indeterminate",
+               (sum(N) / sum(years_atrisk)) * 10000,
+               keyby = c("year", "agegrp10_simple", "type", "gender")],
+       aes(year, V1, col = agegrp10_simple)) +
+  geom_smooth(size = 0.5, se = FALSE) +
+  facet_grid(gender ~ type) +
+  expand_limits(y = 0) +
+  scale_x_continuous(name = "Year",
+                     limits = c(2003.5, 2021),
+                     breaks = xaxisyear) +
+  scale_y_continuous(name = "Crude Incidence\n (per 10,000 person-years)", labels = comma_format()) +
+  theme_few() +
+  theme(
+    axis.text.x = element_text(size = 8),
+    legend.background = element_rect(
+      fill = '#FBFBFB',
+      size = 0.5,
+      linetype = "solid"
+    ),
+    legend.title = element_text(size = 10)
+  ) +
+  scale_colour_manual(values = mypalette2)  +
+  labs(colour = "10-year\n age-group") +
+  guides(colour = guide_legend(reverse = TRUE))
+
+#ggsave("prelim_graphs/prelim_sa/inc_sex_age_3p.svg") 
+
+```
+
+
+# Indeterminate gender
+```{r}
+inc_tab[,
+             sum(N)/sum(years_atrisk)*10000, 
+             keyby = c("type", "gender")]
+```
+
+
+# Heat map 
+
+```{r}
+require(tidyverse)
+
+#no year
+data <- inc_tab[gender != "Indeterminate" & imd != "",
+                .(
+                  N = sum(N),
+                  atrisk = sum(years_atrisk),
+                  outcome = sum(N) / sum(years_atrisk)
+                ),
+                by = c("imd", "gender", "agegrp10_simple", "type")][
+                  , se := sqrt((outcome * (1 - outcome)) / atrisk)]
+
+sii_sex_age_type <-
+  as.data.table(
+    phe_sii(
+      group_by(data, gender, agegrp10_simple, type),
+      imd,
+      atrisk,
+      multiplier = 10000,
+      value_type = 1,
+      # for rates
+      value = outcome,
+      se = se,
+      confidence = 0.95,
+      rii = TRUE,
+      type = "standard"
+    )
+  )
+
+options(digits = 3)
+sii_basic <-
+  sii_sex_age_type[type == "Basic", .(
+    sex = gender,
+    `age group` = agegrp10_simple,
+    sii,
+    `sii LCI` = sii_lower95_0cl,
+    `sii UCI` = sii_upper95_0cl,
+    rii,
+    `rii LCI` = rii_lower95_0cl,
+    `rii CUI` = rii_upper95_0cl
+  )]
+sii_complex <-
+  sii_sex_age_type[type == "Complex", .(
+    sex = gender,
+    `age group` = agegrp10_simple,
+    sii,
+    `sii LCI` = sii_lower95_0cl,
+    `sii UCI` = sii_upper95_0cl,
+    rii,
+    `rii LCI` = rii_lower95_0cl,
+    `rii CUI` = rii_upper95_0cl
+  )]
+kable(sii_basic)
+kable(sii_complex)
+
+# divergent bar plots
+p1 <- ggplot(data = sii_sex_age_type[type != "Complex 3+"],
+             aes(x = agegrp10_simple,
+                 y = sii, fill = gender)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  facet_grid(cols = vars(type)) +
+  theme_few() +
+  theme(axis.title = element_text(size = 10)) +
+  scale_x_discrete(name = "Age group") +
+  scale_y_continuous(name = "Absolute Inequalities\n (Incidence per 10,000 person-years)", breaks = c(-400,-200, 0, 200, 400)) +
+  scale_fill_brewer(type = 'qual', palette = "Set2")  +
+  labs(fill = "Sex")
+
+p2 <- ggplot(data = sii_sex_age_type[type != "Complex 3+"],
+             aes(x = agegrp10_simple,
+                 y = (rii - 1),
+                 fill = gender)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  facet_grid(cols = vars(type)) +
+  theme_few() +
+  theme(axis.title = element_text(size = 10)) +
+  scale_x_discrete(name = "Age group") +
+  scale_y_continuous(
+    breaks = c(-0.25, 0, 0.25, 0.5, 0.75, 1),
+    labels =  c(0.75, 1, 1.25, 1.5, 1.75, 2),
+    name = "Relative Inequalities"
+  ) +
+  scale_fill_brewer(type = 'qual', palette = "Set2")  +
+  labs(fill = "Sex")
+plot_grid(p1, p2, ncol = 1, labels = c("a", "b"))
+#ggsave("prelim_graphs/inc_sii_rii_st.svg")
+
+# divergent bar plots - sa
+p1 <- ggplot(data = sii_sex_age_type,
+             aes(x = agegrp10_simple,
+                 y = sii, fill = gender)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  facet_grid(cols = vars(type)) +
+  theme_few() +
+  theme(axis.title = element_text(size = 10),
+        axis.text.x  = element_text(size = 6)) +
+  scale_x_discrete(name = "Age group") +
+  scale_y_continuous(name = "Absolute Inequalities\n (Incidence per 10,000 person-years)") +
+  scale_fill_brewer(type = 'qual', palette = "Set2")  +
+  labs(fill = "Sex")
+
+p2 <- ggplot(data = sii_sex_age_type,
+             aes(x = agegrp10_simple,
+                 y = (rii - 1),
+                 fill = gender)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  facet_grid(cols = vars(type)) +
+  theme_few() +
+  theme(axis.title = element_text(size = 10),
+        axis.text.x  = element_text(size = 6)) +
+  scale_x_discrete(name = "Age group") +
+  scale_y_continuous(
+    breaks = c(-0.25, 0, 0.25, 0.5, 0.75, 1),
+    labels =  c(0.75, 1, 1.25, 1.5, 1.75, 2),
+    name = "Relative Inequalities"
+  ) +
+  scale_fill_brewer(type = 'qual', palette = "Set2")  +
+  labs(fill = "Sex")
+plot_grid(p1, p2, ncol = 1, labels = c("a", "b"))
+#ggsave("prelim_graphs/prelim_sa/inc_sii_rii_st_3p.svg")
+
+```
+
+
+
+# Age-standardised by IMD
+
+```{r}
+
+eustandpop <- fread(file = data_dir_lookup("eustandardpop5yrband.csv"), 
+                    header = TRUE, sep = ",") #European Standardised pop 
+eustandpop[, gender := as.factor(ifelse(gender== "Male", "Men", "Women"))] 
+setnames(eustandpop, c("stand.pop", "age.group"), c("pop", "agegrp5"))
+
+
+dsr_a_imd <- function(x, y){
+  DT <- inc_tab[imd == x & gender != "Indeterminate" & type == y, 
+                                .(N = sum(N), atrisk = sum(years_atrisk)),
+                by = c("year", "gender", "agegrp5")]
+  z <-  rbind(
+  as.data.table( dsr(
+    data= DT[gender == "Men", ],
+    event=N,
+    fu=atrisk,
+    subgroup=year, age.group, type,
+    refdata=eustandpop[gender == "Men",],
+    method="gamma",
+    sig=0.95,
+    mp=10000,
+    decimals=4))[, gender := "Men"], 
+  as.data.table( dsr(
+        data= DT[gender == "Women", ],
+        event=N,
+        fu=atrisk,
+        subgroup=year, age.group, type,
+        refdata=eustandpop[gender == "Women",],
+        method="gamma",
+        sig=0.95,
+        mp=10000,
+        decimals=4))[, gender := "Women"] )
+  z[,`:=` (imd = x, type = y)]
+  z
+}
+
+combi_inc_ast_imd <- rbind(
+  dsr_a_imd(1, "Basic"), dsr_a_imd(2, "Basic"), dsr_a_imd(3, "Basic"), 
+  dsr_a_imd(4, "Basic"), dsr_a_imd(5, "Basic"),
+  dsr_a_imd(1, "Complex"), dsr_a_imd(2, "Complex"), dsr_a_imd(3, "Complex"), 
+  dsr_a_imd(4, "Complex"), dsr_a_imd(5, "Complex"), 
+  dsr_a_imd(1, "Complex 3+"), dsr_a_imd(2, "Complex 3+"), 
+  dsr_a_imd(3, "Complex 3+"), 
+  dsr_a_imd(4, "Complex 3+"), dsr_a_imd(5, "Complex 3+"))
+rm(dsr_a_imd)
+
+combi_inc_ast_imd[, imd := factor(imd)]
+setnames(combi_inc_ast_imd, 
+         c("Subgroup", "Std Rate (per 10000)", "95% LCL (Std)", "95% UCL (Std)"), 
+         c("year", "standoutcome", "standlower", "standupper"))
+
+ggplot(combi_inc_ast_imd[type != "Complex 3+"]) + theme_few() +
+  geom_smooth(
+    mapping = aes(x = year, y = standoutcome, colour = imd),
+    se = FALSE,
+    size = 0.5
+  ) +
+  facet_grid(type ~ gender) +
+  expand_limits(y = 0) +
+  scale_x_continuous(name = "Year",
+                     limits = c(2003.5, 2019.5),
+                     breaks = xaxisyear) +
+  scale_y_continuous("Age-standardised incidence\n (per 10,000 person-years)",
+                     labels = comma_format()) +
+  theme(
+    axis.text.x = element_text(size = 8),
+    legend.background = element_rect(
+      fill = '#FBFBFB',
+      size = 0.5,
+      linetype = "solid"
+    )
+  ) +
+  scale_colour_manual(values = mypalette)  +
+  labs(colour = "IMD")  +
+  guides(colour = guide_legend(reverse = TRUE))
+#ggsave("prelim_graphs/inc_combi_asst_sex_imd.svg")
+
+ggplot(combi_inc_ast_imd) + theme_few() +
+  geom_smooth(
+    mapping = aes(x = year, y = standoutcome, colour = imd),
+    se = FALSE,
+    size = 0.5
+  ) +
+  facet_grid(gender ~ type) +
+  expand_limits(y = 0) +
+  scale_x_continuous(name = "Year",
+                     limits = c(2003.5, 2019.5),
+                     breaks = xaxisyear) +
+  scale_y_continuous("Age-standardised incidence\n (per 10,000 person-years)",
+                     labels = comma_format()) +
+  theme(
+    axis.text.x = element_text(size = 8),
+    legend.background = element_rect(
+      fill = '#FBFBFB',
+      size = 0.5,
+      linetype = "solid"
+    )
+  ) +
+  scale_colour_manual(values = mypalette)  +
+  labs(colour = "IMD")  +
+  guides(colour = guide_legend(reverse = TRUE))
+#ggsave("prelim_graphs/prelim_sa/inc_combi_asst_sex_imd_3p.svg")
+
+```
+
+
+
+```{r}
+dsr_a_sex <- function(x){
+  DT <- inc_tab[gender != "Indeterminate" & type == x, 
+                                .(N = sum(N), atrisk = sum(years_atrisk)),
+                by = c("year", "gender", "agegrp5")]
+  z <-  rbind(
+  as.data.table( dsr(
+    data= DT[gender == "Men", ],
+    event=N,
+    fu=atrisk,
+    subgroup=year, age.group, type,
+    refdata=eustandpop[gender == "Men",],
+    method="gamma",
+    sig=0.95,
+    mp=10000,
+    decimals=4))[, gender := "Men"], 
+  as.data.table( dsr(
+        data= DT[gender == "Women", ],
+        event=N,
+        fu=atrisk,
+        subgroup=year, age.group, type,
+        refdata=eustandpop[gender == "Women",],
+        method="gamma",
+        sig=0.95,
+        mp=10000,
+        decimals=4))[, gender := "Women"] )
+  z[,`:=` (type = x)]
+  z
+}
+
+combi_inc_ast_sex <- rbind(dsr_a_sex("Basic"), dsr_a_sex("Complex"))
+setnames(combi_inc_ast_sex, 
+         c("Subgroup", "Std Rate (per 10000)", "95% LCL (Std)", "95% UCL (Std)"), 
+         c("year", "standoutcome", "standlower", "standupper"))
+
+
+
+combi_inc_ast_sex[year %in% c(2004, 2019), 
+                  .(year, type, gender,  `Crude Rate (per 10000)`, standoutcome)]
+
+```

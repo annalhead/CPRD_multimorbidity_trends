@@ -1,0 +1,379 @@
+---
+title: "Descriptive Graphs"
+author: "Anna"
+date: "10/16/2020"
+output: 
+  html_document:
+    keep_md: true
+---
+
+```{r setup, include=FALSE}
+library(ggplot2)
+library(knitr)
+library(fst)
+library(data.table)
+library(tidyverse)
+library(ggthemes)
+
+
+data.table::setDTthreads(10) #this is so that don't use all the processors 
+
+xaxisyear <- c(2004, 2008, 2012, 2016, 2020)
+
+```
+
+# load the data
+```{r echo=FALSE, out.width = '100%'}
+data_dir_CPRD <-
+  function(x = character(0))
+    paste0("/mnt/", Sys.info()[["user"]],
+      "/UoL/CPRD2019mm/Data May 2020/", x)
+
+combi_mm <- read_fst(data_dir_CPRD("combi_mm_detailed.fst"), as.data.table = T)
+combi_mm[, `:=` (
+  imd = factor(imd), 
+  bmm = factor(bmm),
+  cmm = factor(cmm))]
+
+
+```
+
+
+
+
+
+# Descriptive
+
+```{r}
+
+require(scales)
+ggplot(combi_mm[, .N , keyby = c("year", "gender") ], 
+                     aes(x =year, y = N, fill = gender)) + 
+geom_bar(stat= "identity", position=position_stack()) + 
+  scale_y_continuous(labels = comma)
+#ggsave("prelim_graphs/descr_num.png") 
+
+ggplot(combi_mm[, .N , keyby = c("year", "gender", "agegrp10_simple") ], 
+       aes(x =year, y = N, fill = agegrp10_simple)) +
+  geom_bar(stat= "identity", position=position_fill()) + 
+  facet_grid(cols = vars(gender)) +   
+  ylab("proportion") 
+#ggsave("prelim_graphs/descr_sex_age.png") 
+
+ggplot(combi_mm[imd != "", .N , keyby = c("year", "imd") ], 
+       aes(x =year, y = N, fill = imd)) + 
+  geom_bar(stat= "identity", position=position_fill()) +   
+  ylab("proportion")
+
+ggplot(combi_mm[imd != "", .N , keyby = c("year", "imd", "gender") ], 
+       aes(x =year, y = N, fill = imd)) + 
+  geom_bar(stat= "identity", position=position_fill()) +   
+    facet_grid(cols = vars(gender)) +   
+  ylab("proportion")
+#ggsave("prelim_graphs/descr_sex_imd.png") 
+
+ggplot(combi_mm[imd != "", .N , keyby = c("year", "imd", "agegrp10_simple") ], 
+       aes(x =year, y = N, fill = agegrp10_simple)) +
+  geom_bar(stat= "identity", position=position_fill()) + 
+  facet_grid(cols = vars(imd)) +   
+  ylab("proportion") +   
+  theme_few() +
+  theme(axis.text.x = element_text(size = 6, angle = 90, hjust = 1)) +
+  labs(fill = "Age group") 
+ggplot(combi_mm[imd != "", .N , keyby = c("year", "imd", "agegrp10_simple") ], 
+       aes(x =year, y = N, fill = imd)) +
+    geom_bar(stat= "identity", position=position_fill()) + 
+    facet_grid(cols = vars(agegrp10_simple)) +   
+    ylab("proportion") +   
+    theme_few() +
+    theme(axis.text.x = element_text(size = 6, angle = 90, hjust = 1)) +
+    labs(fill = "Age group") 
+#ggsave("prelim_graphs/descr_imd_age.png") 
+
+```
+
+
+# Indeterminate Sex 
+```{r}
+ggplot(combi_mm[gender == "Indeterminate", 
+                .N , 
+                keyby = c("year", "agegrp10_simple")],
+       aes(x = year, y = N, fill = agegrp10_simple)) +
+  geom_bar(stat = "identity", position = position_stack()) +
+  scale_y_continuous(name = "Number individuals registered", 
+                     limits = c(0, 200))
+#ggsave("prelim_graphs/descr_sexI_age.png")
+
+ggplot(combi_mm[gender == "Indeterminate" & imd != "", 
+                .N , 
+                keyby = c("year", "imd") ], 
+       aes(x =year, y = N, fill = imd)) + 
+  geom_bar(stat= "identity", position=position_fill()) +   
+  ylab("proportion") #+ 
+  #scale_y_continuous(name="Number individuals registered", limits = c(0, 200))
+#ggsave("prelim_graphs/descr_sexI_imd.png") 
+
+```
+
+
+
+
+# IMD Missing
+```{r}
+ggplot(combi_mm[gender != "Indeterminate" &
+                  imd == "", .N , keyby = c("year", "gender")],
+       aes(x = year, y = N, fill = gender)) +
+  geom_bar(stat = "identity", position = position_stack()) +
+  scale_y_continuous(name = "Number individuals registered", limits = c(0, 750))
+#ggsave("prelim_graphs/noimd_sex.png")
+
+
+ggplot(combi_mm[imd == "", .N , keyby = c("year", "agegrp10_simple") ], 
+       aes(x =year, y = N, fill = agegrp10_simple)) + 
+  geom_bar(stat= "identity", position=position_fill()) +   
+  ylab("proportion") #+ 
+  #scale_y_continuous(name="Number individuals registered", limits = c(0, 200))
+#ggsave("prelim_graphs/noimd_age.png") 
+
+```
+
+#Looking at nmbers by sex
+```{r}
+
+combi_mm[, table(year, gender)]
+combi_mm[, as.list(round(table(gender)/.N*100, 2)), keyby = .(year)]
+
+combi_mm[year %in% c(2004, 2019), 
+         table(year, gender)]
+combi_mm[year %in% c(2004, 2019), 
+         as.list(round(table(gender)/.N*100, 2)), keyby = .(year)]
+```
+
+#Looking at nmbers in different agegroups 
+```{r}
+combi_mm[year == 2004, summary(age)]
+combi_mm[year == 2019, summary(age)]
+
+combi_mm[, table(year, agegrp10_simple)]
+combi_mm[, as.list(round(table(agegrp10_simple)/.N*100, 2)), keyby = .(year)]
+
+combi_mm[year %in% c(2004, 2019), 
+         table(year, agegrp10_simple)]
+combi_mm[year %in% c(2004, 2019), 
+         as.list(round(table(agegrp10_simple)/.N*100, 2)), keyby = .(year)]
+
+
+ggplot(combi_mm[imd != "", .N , keyby = c("year", "imd", "agegrp10_simple") ], 
+       aes(x =year, y = N, fill = agegrp10_simple)) +
+    geom_bar(stat= "identity", position=position_stack()) + 
+    facet_grid(cols = vars(imd)) +   
+    ylab("proportion") +   
+    theme(axis.text.x = element_text(size = 6, angle = 90, hjust = 1))
+
+
+
+ggplot(combi_mm[imd != "", .N , keyby = c("year", "imd", "agegrp10_simple") ], 
+       aes(x =year, y = N, fill = agegrp10_simple)) +
+    geom_bar(stat= "identity", position=position_stack()) + 
+    facet_grid(cols = vars(imd)) +   
+    ylab("proportion") +   
+  theme_few() +
+    theme(axis.text.x = element_text(size = 6, angle = 90, hjust = 1))
+
+
+ggplot(combi_mm[imd != "", .N , keyby = c("year", "imd", "agegrp10_simple") ], 
+       aes(x =year, y = N, fill = imd)) +
+    geom_bar(stat= "identity", position=position_stack()) + 
+    facet_grid(cols = vars(agegrp10_simple)) +   
+    ylab("proportion") +   
+  theme_few() +
+    theme(axis.text.x = element_text(size = 6, angle = 90, hjust = 1))
+
+
+
+
+ggplot(combi_mm[agegrp10_simple == "18-29" &
+                  imd != "", .N , keyby = c("year", "imd")],
+       aes(x = year, y = N, fill = imd)) +
+  geom_bar(stat = "identity", position = position_stack()) +
+  ylab("proportion") +
+  theme_few() +
+  theme(axis.text.x = element_text(
+    size = 6,
+    angle = 90,
+    hjust = 1
+  ))
+
+
+```
+
+#Looking at nmbers by imd
+```{r}
+
+combi_mm[, table(year, imd)]
+combi_mm[, as.list(round(table(imd)/.N*100, 2)), keyby = .(year)]
+
+combi_mm[year %in% c(2004, 2019), 
+         table(year, imd)]
+combi_mm[year %in% c(2004, 2019), 
+         as.list(round(table(imd)/.N*100, 2)), keyby = .(year)]
+```
+
+
+#Looking at nmbers by region
+```{r}
+
+combi_mm[, table(year, region)]
+combi_mm[, as.list(round(table(region)/.N*100, 2)), keyby = .(year)]
+
+combi_mm[year %in% c(2004, 2019), 
+         table(year, region)]
+combi_mm[year %in% c(2004, 2019), 
+         as.list(round(table(region)/.N*100, 2)), keyby = .(year)]
+```
+
+#Looking at bmm & cmm totals by year
+```{r}
+
+combi_mm[, .(N=sum(bmm != 0), pc = sum(bmm != 0)/.N), keyby = year]
+combi_mm[, .(N=sum(cmm != 0), pc = sum(cmm != 0)/.N), keyby = year]
+
+```
+
+# looking at time in study
+```{r}
+study_pats <- read_fst(data_dir_CPRD("study_pats.fst"), as.data.table = TRUE)
+
+study_pats[, enterstudy := as.IDate(ifelse(
+  reg1yr < 2004-01-01, #setting start date to 1Jan2004 as earliest 
+  as.IDate((paste0("01012004")), format = "%d%m%Y"), 
+  reg1yr ), format = "Y%/m%/d%")]
+study_pats[, enterstudy := as.IDate(ifelse(
+  reg1yr < 2004-01-01, #setting start date to 1Jan2004 as earliest 
+  as.IDate((paste0("01012004")), format = "%d%m%Y"), 
+  reg1yr ), format = "Y%/m%/d%")]
+
+
+study_pats[censordate - enterstudy >=0, 
+        summary((censordate - enterstudy)/365.24)]
+
+```
+
+
+
+
+# Looking at start vs end status - need to add back in censordate
+```{r}
+setkey(combi_mm, patid, year)
+options(digits = 3)
+first_year <- combi_mm[combi_mm[, .I[1], keyby = c("patid")]$V1]
+combi_mm[study_pats, on = 'patid', `:=`
+         (censordate = i.censordate, censorreason = i.censorreason)]
+last_year <-
+  combi_mm[year(censordate) == year | #want the final year of reg
+             (year == "2019" & year(censordate) == 2020),]
+first_year[last_year, on = 'patid', `:=` (end_bmm = i.bmm, end_cmm = i.cmm)]
+
+first_year[, .(
+  h_h = sum(end_bmm == 0) / sum(bmm != 2) * 100,
+  #Start healthy (includes incidentbmm in 1st year) stay healthy
+  h_bmm = sum(end_bmm != 0 &
+                bmm != 2 & end_cmm == 0) / sum(bmm != 2) * 100,
+  #healthy --> bmm
+  h_cmm = sum(end_cmm != 0 &
+                bmm != 2) / sum(bmm != 2) * 100,
+  #healthy --> cmm
+  bmm_cmm = sum(end_cmm != 0 &
+                  bmm == 2 & cmm == 0) / sum(bmm == 2) * 100
+)] #bmm --> cmm
+
+
+#Doing in 50+ only for comparison with Strauss paper
+combi_mm_50plus <- combi_mm[age>49,]
+first_year_50plus <- combi_mm_50plus[combi_mm_50plus[, .I[1], 
+                                                     keyby = c("patid")]$V1]
+first_year_50plus[last_year, on = 'patid', `:=` 
+                  (end_bmm = i.bmm, end_cmm = i.cmm)]
+
+first_year_50plus[, #Start healthy (incl incidentbmm in 1st year) stay healthy: 
+                  .(h_h = sum(end_bmm == 0)/sum(bmm != 2)*100, 
+               h_bmm = sum(end_bmm != 0 & bmm != 2 & end_cmm == 0)/
+                 sum(bmm != 2)*100, #healthy --> bmm
+               h_cmm = sum(end_cmm != 0 & bmm != 2)/
+                 sum(bmm != 2)*100, #healthy --> cmm
+               bmm_cmm = sum(end_cmm != 0 & bmm == 2 & cmm == 0 )/
+                 sum(bmm == 2)*100)] #bmm --> cmm
+
+
+```
+
+
+# Mean/sd/median/iqr # of conditions in those with basic/complex multimorbidity 
+```{r}
+options(digits = 2)
+
+
+combi_mm[bmm != 0, .(mean = mean(n_cond),
+                    sd = sd(n_cond), 
+                    lower = quantile(n_cond, .25, na.rm=TRUE),
+                  middle = quantile(n_cond, .50, na.rm=TRUE),
+                  upper = quantile(n_cond, .75, na.rm=TRUE)), keyby = year]
+combi_mm[cmm != 0, .(mean = mean(n_cond),
+                    sd = sd(n_cond), 
+                    lower = quantile(n_cond, .25, na.rm=TRUE),
+                  middle = quantile(n_cond, .50, na.rm=TRUE),
+                  upper = quantile(n_cond, .75, na.rm=TRUE)), keyby = year]
+
+
+```
+
+
+
+
+# Overall event numbers for indeterminate gender
+```{r}
+
+#Prevalence
+first_year[, sum(end_bmm != 0), by = gender] #bmm
+first_year[, sum(end_cmm != 0), by = gender] #cmm
+
+#Incidence
+first_year[, sum(end_bmm != 0 & cmm !=2), by = gender] #bmm
+first_year[, sum(end_cmm != 0 & cmm !=2), by = gender] #cmm
+
+#CF
+first_year[,sum(end_bmm != 0 & censorreason ==1), by = gender] #bmm
+first_year[,sum(end_cmm != 0 & censorreason ==1), by = gender] #cmm
+```
+
+
+# looking at censordates
+```{r}
+patient <- read_fst(data_dir_CPRD("patient.fst"), 
+                    columns = c("patid", "pracid", "dob", "reg1yr"), 
+                    as.data.table = TRUE) 
+practice <- read_fst(data_dir_CPRD("practice.fst"), 
+                    columns = c("pracid", "lcd"), 
+                    as.data.table = TRUE) 
+last_year[patient, on = 'patid', `:=` 
+          (dob = i.dob, pracid = i.pracid, reg1yr = i.reg1yr)]
+last_year[practice, on = 'pracid', lcd := i.lcd]
+last_year[, enterstudy := reg1yr]
+last_year[reg1yr < "2004-01-01", enterstudy := as.IDate("2004-01-01")]
+last_year[enterstudy - dob < 6574, enterstudy := dob + 6574]
+last_year[, daysinstudy := censordate - enterstudy]
+
+#Censored for reason other than death #458,635
+summary(last_year[censorreason == 0 & censordate < lcd & 
+                    censordate < "2019-12-31" ])
+#stayed until the end of the study/lcd of practice #462,413
+summary(last_year[censorreason == 0 & 
+                    (censordate == lcd |censordate >= "2019-12-31" ) ] )
+#died #70,195 
+summary(last_year[censorreason==1])
+
+
+
+```
+
+People who are censored (didnt die) are younger and have fewer conditions, more likely to have IMD as NA or be more deprived and more likely to be female. 

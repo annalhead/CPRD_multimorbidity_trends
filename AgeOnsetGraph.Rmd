@@ -1,0 +1,539 @@
+---
+title: "Age of Onset Graphs"
+author: "Anna"
+date: "01/01/2021"
+output: 
+  html_document:
+    keep_md: true
+---
+
+```{r setup, include=FALSE}
+library(ggplot2)
+library(knitr)
+library(fst)
+library(data.table)
+if (!require("PHEindicatormethods")) install.packages("PHEindicatormethods")
+library(PHEindicatormethods)
+library(RColorBrewer)
+library(ggthemes)
+library(tidyverse)
+
+data.table::setDTthreads(10) #this is so that don't use all the processors 
+cbPalette <- c("#999999", "#E69F00", "#56B4E9", "#009E73", 
+               "#F0E442", "#0072B2", "#D55E00", "#CC79A7")
+
+cbPaletteMod <- c("#999999", "#E69F00", "#56B4E9", 
+                  "#009E73", "#D55E00", "#CC79A7")
+
+
+
+mypalette <-brewer.pal(7,"GnBu")
+mypalette #don't want the faintest 2 
+mypalette <- c("#A8DDB5" ,"#7BCCC4" ,"#4EB3D3" ,"#2B8CBE", "#08589E")
+
+xaxisyear <- c(2004, 2007, 2010, 2013, 2016, 2019)
+
+```
+
+# load the data
+```{r echo=FALSE, out.width = '100%'}
+data_dir_CPRD <-
+  function(x = character(0))
+    paste0("/mnt/", Sys.info()[["user"]],
+      "/UoL/CPRD2019mm/Data May 2020/", x)
+
+
+combi_mm <- read_fst(data_dir_CPRD("combi_mm_detailed.fst"), as.data.table = T)
+combi_mm[, `:=` (
+  imd = factor(imd), 
+  bmm = factor(bmm),
+  cmm = factor(cmm))]
+
+
+
+```
+
+# Looking at the overall  by year
+```{r}
+combi_mm[bmm == 1L, 
+                .(lower=quantile(age, .25, na.rm=TRUE),
+                    middle=quantile(age, .50, na.rm=TRUE),
+                    upper=quantile(age, .75, na.rm=TRUE)),
+         keyby = year]
+
+combi_mm[cmm == 1L , 
+                .(lower=quantile(age, .25, na.rm=TRUE),
+                    middle=quantile(age, .50, na.rm=TRUE),
+                    upper=quantile(age, .75, na.rm=TRUE)),
+         keyby = year]
+
+
+
+```
+
+
+# Looking at the overall difference by sex
+```{r}
+combi_mm[bmm == 1L, 
+                .(lower=quantile(age, .25, na.rm=TRUE),
+                    middle=quantile(age, .50, na.rm=TRUE),
+                    upper=quantile(age, .75, na.rm=TRUE)), 
+                keyby = c("gender")]
+
+combi_mm[cmm == 1L , 
+                .(lower=quantile(age, .25, na.rm=TRUE),
+                    middle=quantile(age, .50, na.rm=TRUE),
+                    upper=quantile(age, .75, na.rm=TRUE)), 
+                keyby = c("gender")]
+
+
+
+```
+
+# Looking at the overall difference between most & least deprived
+```{r}
+combi_mm[bmm == 1L & imd != "", 
+                .(lower=quantile(age, .25, na.rm=TRUE),
+                    middle=quantile(age, .50, na.rm=TRUE),
+                    upper=quantile(age, .75, na.rm=TRUE)), 
+                keyby = c("imd")]
+
+combi_mm[cmm == 1L & imd != "", 
+                .(lower=quantile(age, .25, na.rm=TRUE),
+                    middle=quantile(age, .50, na.rm=TRUE),
+                    upper=quantile(age, .75, na.rm=TRUE)), 
+                keyby = c("imd")]
+
+
+
+```
+
+# BMM
+
+# BMM Sex
+```{r}
+#check onset age trends
+ggplot(combi_mm[bmm == 1L & gender != "Indeterminate", 
+                mean(age), keyby = c("year", "gender")],
+  aes(year, V1, col = gender)) + geom_line() + ylab("Mean BMM onset age") +  
+  expand_limits(y=18)
+
+
+ggplot(combi_mm[bmm == 1L & gender != "Indeterminate", 
+                .(lower=quantile(age, .25, na.rm=TRUE),
+                    middle=quantile(age, .50, na.rm=TRUE),
+                    upper=quantile(age, .75, na.rm=TRUE)), 
+                keyby = c("year", "gender")],
+  aes(year, middle, col = gender)) + 
+  geom_line(position =  position_dodge(0.5)) + 
+  ylab("Median BMM onset age") +  
+  expand_limits(y=0) +
+  geom_errorbar(mapping= aes(x=year, ymin = lower, ymax = upper), 
+                position =  position_dodge(0.5), width = 0.5)
+```
+
+
+# BMM IMD
+```{r}
+ggplot(combi_mm[bmm == 1L & imd != "", 
+                mean(age), keyby = c("year", "imd")],
+  aes(year, V1, col = imd)) + geom_line() + ylab("Mean BMM onset age") +  
+  expand_limits(y=18)
+ggplot(combi_mm[bmm == 1L & imd != "", 
+                median(age), keyby = c("year", "imd")],
+  aes(year, V1, col = imd)) + geom_line() + ylab("Median BMM onset age") +  
+  expand_limits(y=0)
+
+ggplot(combi_mm[bmm == 1L & imd != "", 
+                .(lower=quantile(age, .25, na.rm=TRUE),
+                    middle=quantile(age, .50, na.rm=TRUE),
+                    upper=quantile(age, .75, na.rm=TRUE)), 
+                keyby = c("year", "imd")],
+  aes(year, middle, col = imd)) + 
+  geom_line(position =  position_dodge(0.5)) + 
+  ylab("Median BMM onset age") +  
+  expand_limits(y=0) +
+  geom_errorbar(mapping= aes(x=year, ymin = lower, ymax = upper), 
+                position =  position_dodge(0.5), width = 0.5)
+```
+
+# BMM Region
+```{r}
+ggplot(combi_mm[bmm == 1L & region != "", 
+                mean(age), keyby = c("year", "region")],
+  aes(year, V1, col = region)) + geom_line() + ylab("Mean BMM onset age") +  
+  expand_limits(y=18)
+ggplot(combi_mm[bmm == 1L & region != "", 
+                median(age), keyby = c("year", "region")],
+  aes(year, V1, col = region)) + geom_line() + ylab("Median BMM onset age") +  
+  expand_limits(y=0)
+
+ggplot(combi_mm[bmm == 1L & region != "", 
+                .(lower=quantile(age, .25, na.rm=TRUE),
+                    middle=quantile(age, .50, na.rm=TRUE),
+                    upper=quantile(age, .75, na.rm=TRUE)), 
+                keyby = c("year", "region")],
+  aes(year, middle, col = region)) + 
+  geom_line(position =  position_dodge(0.5)) + 
+  ylab("Median BMM onset age") +  
+  expand_limits(y=0) +
+  geom_errorbar(mapping= aes(x=year, ymin = lower, ymax = upper), 
+                position =  position_dodge(0.5), width = 0.5)
+
+```
+
+# BMM Sex & IMD
+
+```{r}
+ggplot(combi_mm[bmm == 1L & imd != "" & gender != "Indeterminate", 
+                mean(age), keyby = c("year", "imd", "gender")],
+  aes(year, V1, col = imd)) + 
+  geom_line() + 
+  facet_grid(cols = vars(gender)) +
+  ylab("Mean BMM onset age") +  
+  expand_limits(y=18)
+
+ggplot(combi_mm[bmm == 1L & imd != "" & gender != "Indeterminate", 
+                median(age), keyby = c("year", "imd", "gender")],
+  aes(year, V1, col = imd)) + 
+  geom_line() + 
+  facet_grid(cols = vars(gender)) +
+  ylab("Median BMM onset age") +  
+  expand_limits(y=18)
+
+ggplot(combi_mm[bmm == 1L & imd != "" & gender != "Indeterminate", 
+                .(lower=quantile(age, .25, na.rm=TRUE),
+                    middle=quantile(age, .50, na.rm=TRUE),
+                    upper=quantile(age, .75, na.rm=TRUE)), 
+                keyby = c("year", "imd", "gender")],
+  aes(year, middle, col = imd)) + 
+  geom_line(position =  position_dodge(0.5)) + 
+  facet_grid(rows = vars(gender)) + 
+  ylab("Median BMM onset age") +  
+  expand_limits(y=0) +
+  geom_errorbar(mapping= aes(x=year, ymin = lower, ymax = upper), 
+                position =  position_dodge(0.5), width = 0.5)
+
+```
+
+
+# CMM
+
+# CMM Sex
+```{r}
+#check onset age trends
+ggplot(combi_mm[cmm == 1L & gender != "Indeterminate", 
+                mean(age), keyby = c("year", "gender")],
+  aes(year, V1, col = gender)) + geom_line() + ylab("Mean CMM onset age") +  
+  expand_limits(y=18)
+ggplot(combi_mm[cmm == 1L & gender != "Indeterminate", 
+                median(age), keyby = c("year", "gender")],
+  aes(year, V1, col = gender)) + geom_line() + ylab("Median CMM onset age") +  
+  expand_limits(y=0)
+
+ggplot(combi_mm[cmm == 1L & gender != "Indeterminate", 
+                .(lower=quantile(age, .25, na.rm=TRUE),
+                    middle=quantile(age, .50, na.rm=TRUE),
+                    upper=quantile(age, .75, na.rm=TRUE)), 
+                keyby = c("year", "gender")],
+  aes(year, middle, col = gender)) + 
+  geom_line(position =  position_dodge(0.5)) + 
+  ylab("Median CMM onset age") +  
+  expand_limits(y=0) +
+  geom_errorbar(mapping= aes(x=year, ymin = lower, ymax = upper), 
+                position =  position_dodge(0.5), width = 0.5)
+```
+
+
+# CMM IMD
+```{r}
+ggplot(combi_mm[cmm == 1L & imd != "", 
+                mean(age), keyby = c("year", "imd")],
+  aes(year, V1, col = imd)) + geom_line() + ylab("Mean CMM onset age") +  
+  expand_limits(y=18)
+ggplot(combi_mm[cmm == 1L & imd != "", 
+                median(age), keyby = c("year", "imd")],
+  aes(year, V1, col = imd)) + geom_line() + ylab("Median CMM onset age") +  
+  expand_limits(y=0)
+
+ggplot(combi_mm[cmm == 1L & imd != "", 
+                .(lower=quantile(age, .25, na.rm=TRUE),
+                    middle=quantile(age, .50, na.rm=TRUE),
+                    upper=quantile(age, .75, na.rm=TRUE)), 
+                keyby = c("year", "imd")],
+  aes(year, middle, col = imd)) + 
+  geom_line(position =  position_dodge(0.5)) + 
+  ylab("Median CMM onset age") +  
+  expand_limits(y=0) +
+  geom_errorbar(mapping= aes(x=year, ymin = lower, ymax = upper), 
+                position =  position_dodge(0.5), width = 0.5)
+```
+
+# CMM Region
+```{r}
+ggplot(combi_mm[cmm == 1L & region != "", 
+                mean(age), keyby = c("year", "region")],
+  aes(year, V1, col = region)) + geom_line() + ylab("Mean CMM onset age") +  
+  expand_limits(y=18)
+ggplot(combi_mm[cmm == 1L & region != "", 
+                median(age), keyby = c("year", "region")],
+  aes(year, V1, col = region)) + geom_line() + ylab("Median CMM onset age") +  
+  expand_limits(y=0)
+
+ggplot(combi_mm[cmm == 1L & region != "", 
+                .(lower=quantile(age, .25, na.rm=TRUE),
+                    middle=quantile(age, .50, na.rm=TRUE),
+                    upper=quantile(age, .75, na.rm=TRUE)), 
+                keyby = c("year", "region")],
+  aes(year, middle, col = region)) + 
+  geom_line(position =  position_dodge(0.5)) + 
+  ylab("Median CMM onset age") +  
+  expand_limits(y=0) +
+  geom_errorbar(mapping= aes(x=year, ymin = lower, ymax = upper), 
+                position =  position_dodge(0.5), width = 0.5)
+
+```
+
+# CMM Sex & IMD
+
+```{r}
+ggplot(combi_mm[cmm == 1L & imd != "" & gender != "Indeterminate", 
+                mean(age), keyby = c("year", "imd", "gender")],
+  aes(year, V1, col = imd)) + 
+  geom_line() + 
+  facet_grid(cols = vars(gender)) +
+  ylab("Mean CMM onset age") +  
+  expand_limits(y=18)
+
+ggplot(combi_mm[cmm == 1L & imd != "" & gender != "Indeterminate", 
+                median(age), keyby = c("year", "imd", "gender")],
+  aes(year, V1, col = imd)) + 
+  geom_line() + 
+  facet_grid(cols = vars(gender)) +
+  ylab("Median CMM onset age") +  
+  expand_limits(y=18)
+
+ggplot(combi_mm[cmm == 1L & imd != "" & gender != "Indeterminate", 
+                .(lower=quantile(age, .25, na.rm=TRUE),
+                    middle=quantile(age, .50, na.rm=TRUE),
+                    upper=quantile(age, .75, na.rm=TRUE)), 
+                keyby = c("year", "imd", "gender")],
+  aes(year, middle, col = imd)) + 
+  geom_line(position =  position_dodge(0.5)) + 
+  facet_grid(rows = vars(gender)) + 
+  ylab("Median CMM onset age") +  
+  expand_limits(y=0) +
+  geom_errorbar(mapping= aes(x=year, ymin = lower, ymax = upper), 
+                position =  position_dodge(0.5), width = 0.5)
+
+```
+
+
+
+#BMM & CMM - by sex 
+```{r}
+combi_ageonset_sex <- rbind(combi_mm[bmm == 1L & imd != "" & gender != "Indeterminate", 
+                .(mean = mean(age),
+                  lower = quantile(age, .25, na.rm=TRUE),
+                  middle = quantile(age, .50, na.rm=TRUE),
+                  upper = quantile(age, .75, na.rm=TRUE), 
+                  type = "bmm"), 
+                  keyby = c("year", "gender")],
+                combi_mm[cmm == 1L & imd != "" & gender != "Indeterminate", 
+                .(mean = mean(age),
+                  lower = quantile(age, .25, na.rm=TRUE),
+                  middle = quantile(age, .50, na.rm=TRUE),
+                  upper = quantile(age, .75, na.rm=TRUE), 
+                  type = "cmm"), 
+                  keyby = c("year", "gender")])
+
+
+ggplot(combi_ageonset_sex,
+  aes(year, middle, col = gender)) + 
+  geom_line() + 
+  facet_grid(cols = vars(type) ) +
+  ylab("Median MM onset age") +  
+  expand_limits(y=18)
+
+
+combi_ageonset_sex[type == "bmm" & middle <50]
+combi_ageonset_sex[type == "cmm" & middle <60]
+
+```
+
+# BMM & CMM - by sex & imd 
+```{r}
+
+combi_ageonset_sex_imd <- rbind(combi_mm[bmm == 1L & imd != "" & 
+                                           gender != "Indeterminate", 
+                .(mean = mean(age),
+                  lower = quantile(age, .25, na.rm=TRUE),
+                  middle = quantile(age, .50, na.rm=TRUE),
+                  upper = quantile(age, .75, na.rm=TRUE), 
+                  type = "Basic"), 
+                  keyby = c("year", "imd", "gender")],
+                combi_mm[cmm == 1L & imd != "" & gender != "Indeterminate", 
+                .(mean = mean(age),
+                  lower = quantile(age, .25, na.rm=TRUE),
+                  middle = quantile(age, .50, na.rm=TRUE),
+                  upper = quantile(age, .75, na.rm=TRUE), 
+                  type = "Complex"), 
+                  keyby = c("year", "imd", "gender")],
+                 combi_mm[cmm3plus == 1L & imd != "" & 
+                            gender != "Indeterminate", 
+                .(mean = mean(age),
+                  lower = quantile(age, .25, na.rm=TRUE),
+                  middle = quantile(age, .50, na.rm=TRUE),
+                  upper = quantile(age, .75, na.rm=TRUE), 
+                  type = "Complex 3+"), 
+                  keyby = c("year", "imd", "gender")])
+
+
+ggplot(combi_ageonset_sex_imd[type != "Complex 3+"],
+       aes(year, middle, col = imd)) + 
+    geom_smooth( size = 0.5, se = FALSE) + #linear regression line 
+    facet_grid(type ~ gender) +
+    theme_few() +
+    ylab("Median age of onset") +  
+    expand_limits(y=18)  +
+    scale_x_continuous(name="Year", 
+                       limits=c(2003.5, 2019.5), 
+                       breaks = xaxisyear) + 
+    theme(axis.text.x = element_text(size = 8),
+          legend.background = element_rect(fill='#FBFBFB', 
+                                           size=0.5, 
+                                           linetype="solid"), 
+          legend.title = element_text( size=10)) +
+    scale_colour_manual(values = mypalette) + 
+  labs(colour = "IMD") 
+#ggsave("prelim_graphs/age_onset.svg") 
+
+ggplot(combi_ageonset_sex_imd,
+       aes(year, middle, col = imd)) +
+  geom_smooth(size = 0.5, se = FALSE) + #linear regression line
+  facet_grid(gender ~ type) +
+  theme_few() +
+  ylab("Median age of onset") +
+  expand_limits(y = 18)  +
+  scale_x_continuous(name = "Year",
+                     limits = c(2003.5, 2019.5),
+                     breaks = xaxisyear) +
+  theme(
+    axis.text.x = element_text(size = 8),
+    legend.background = element_rect(
+      fill = '#FBFBFB',
+      size = 0.5,
+      linetype = "solid"
+    ),
+    legend.title = element_text(size = 10)
+  ) +
+  scale_colour_manual(values = mypalette) +
+  labs(colour = "IMD")
+#ggsave("prelim_graphs/prelim_sa/age_onset_3p.svg") 
+
+ggplot(combi_ageonset_sex_imd[imd %in% c("1", "5")],
+  aes(year, middle, col = imd)) + 
+  geom_line() + 
+  facet_grid(type ~ gender) +
+  ylab("Median MM onset age") +  
+  expand_limits(y=18) +
+  geom_errorbar(mapping= aes(x=year, ymin = lower, ymax = upper), 
+                position =  position_dodge(0.5), width = 0.5)
+#ggsave("prelim_graphs/age_onset_iqr.png") 
+
+```
+
+# BMM & CMM 
+```{r}
+
+combi_ageonset_simple <- rbind(combi_mm[bmm == 1L , 
+                .(mean = mean(age),
+                  lower = quantile(age, .25, na.rm=TRUE),
+                  middle = quantile(age, .50, na.rm=TRUE),
+                  upper = quantile(age, .75, na.rm=TRUE), 
+                  type = "Basic"), 
+                  keyby = c("year")],
+                combi_mm[cmm == 1L , 
+                .(mean = mean(age),
+                  lower = quantile(age, .25, na.rm=TRUE),
+                  middle = quantile(age, .50, na.rm=TRUE),
+                  upper = quantile(age, .75, na.rm=TRUE), 
+                  type = "Complex"), 
+                  keyby = c("year")])
+
+ggplot(combi_ageonset_simple,
+       aes(year, middle, col = type)) +
+  geom_line() +
+  geom_errorbar(
+    mapping = aes(x = year, ymin = lower, ymax = upper),
+    position =  position_dodge(0.5),
+    width = 0.5
+  ) +
+  theme_bw() +
+  scale_x_continuous(name = "Year",
+                     limits = c(2003.5, 2019.5),
+                     breaks = xaxisyear) +
+  ylab("Median age of onset") +
+  expand_limits(y = 18) +
+  theme(
+    axis.text.x = element_text(size = 8),
+    legend.background = element_rect(
+      fill = '#FBFBFB',
+      size = 0.5,
+      linetype = "solid"
+    )
+  ) +
+  scale_colour_manual(values = cbPalette)
+
+#ggsave("prelim_graphs/simple_age_onset.png") 
+
+combi_ageonset_simple_3p <- rbind(combi_mm[bmm == 1L , 
+                .(mean = mean(age),
+                  lower = quantile(age, .25, na.rm=TRUE),
+                  middle = quantile(age, .50, na.rm=TRUE),
+                  upper = quantile(age, .75, na.rm=TRUE), 
+                  type = "Basic"), 
+                  keyby = c("year")],
+                combi_mm[cmm == 1L , 
+                .(mean = mean(age),
+                  lower = quantile(age, .25, na.rm=TRUE),
+                  middle = quantile(age, .50, na.rm=TRUE),
+                  upper = quantile(age, .75, na.rm=TRUE), 
+                  type = "Complex"), 
+                  keyby = c("year")],
+                combi_mm[cmm3plus == 1L , 
+                .(mean = mean(age),
+                  lower = quantile(age, .25, na.rm=TRUE),
+                  middle = quantile(age, .50, na.rm=TRUE),
+                  upper = quantile(age, .75, na.rm=TRUE), 
+                  type = "Complex 3+"), 
+                  keyby = c("year")])
+
+ggplot(combi_ageonset_simple_3p,
+       aes(year, middle, col = type)) +
+  geom_line() +
+  geom_errorbar(
+    mapping = aes(x = year, ymin = lower, ymax = upper),
+    position =  position_dodge(0.5),
+    width = 0.5
+  ) +
+  theme_bw() +
+  scale_x_continuous(name = "Year",
+                     limits = c(2003.5, 2019.5),
+                     breaks = xaxisyear) +
+  ylab("Median age of onset") +
+  expand_limits(y = 18) +
+  theme(
+    axis.text.x = element_text(size = 8),
+    legend.background = element_rect(
+      fill = '#FBFBFB',
+      size = 0.5,
+      linetype = "solid"
+    )
+  ) +
+  scale_colour_manual(values = cbPalette)
+
+#ggsave("prelim_graphs/simple_age_onset.png") 
+
+```
+
