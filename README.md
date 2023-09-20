@@ -2,6 +2,7 @@
 
 This repository shares the code for the analysis and figures for our study of trends and inequalities in multimorbidity between 2004 - 2019 in England, using CPRD Aurum data. The results of our analysis are published in The Lancet Healthy Longevity as _Inequalities in incident and prevalent multimorbidity in England, 2004–19: a population-based, descriptive study_ [https://doi.org/10.1016/S2666-7568(21)00146-X](https://doi.org/10.1016/S2666-7568(21)00146-X)
  
+* Please note - this code is for the work within my UoLiverpool/SPHR PhD studentship (as is all other code on this github). This is not the phenotyping or analysis code used in other projects I am involved in (e.g. work with The Health Foundation or the IMPACTncd microsimulation model), and does not include implementation of the Cambridge Multimorbidity Score. I am working on making this code available, but in the meantime please email me (ahead@liverpool.ac.uk) with any questions about code for other projects.
 
 We have used 2 definitions of multimorbidity:
 Basic Multimorbidity - 2 or more conditions (from a list of 211, details here: https://github.com/annalhead/CPRD_multimorbidity_codelists)
